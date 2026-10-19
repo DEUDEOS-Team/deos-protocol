@@ -7,6 +7,9 @@ int deos_frame_encode(const deos_message_t *msg, uint8_t *buf, size_t buf_max)
     if (!msg || !buf) {
         return -EINVAL;
     }
+    if (msg->payload_len > DEOS_MAX_PAYLOAD_LEN) {
+        return -EMSGSIZE;
+    }
     if ((size_t)(DEOS_UNIVERSAL_HEADER_SIZE + msg->payload_len) > buf_max) {
         return -ENOSPC;
     }
