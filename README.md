@@ -4,6 +4,8 @@
 
 Herhangi bir RTOS (Zephyr, FreeRTOS), dinamik bellek ayırıcı (`malloc`) veya POSIX kütüphanesine ihtiyaç duymaz. Bu sayede hem **STM32 mikrodenetleyicilerinde** hem de **Linux/ROS 2, Python ve Masaüstü Yer İstasyonu** yazılımlarında doğrudan derlenebilir.
 
+> **Detaylı Kullanım Rehberi:** Python, C/C++, Universal Frame v1.2 (`0x12`), opsiyonel `DeosRegistry` kullanımı ve Global Fault yönetimi örnekleri için [`USAGE_GUIDE.md`](USAGE_GUIDE.md) dosyasına bakın.
+
 ---
 
 ## 1. Modülün Sorumlulukları ve İçeriği
