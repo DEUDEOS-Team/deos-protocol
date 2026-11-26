@@ -16,7 +16,7 @@ extern "C" {
  * Byte 0: Destination Node (uint8_t)
  * Byte 1: Source Node (uint8_t)
  * Byte 2: Priority (uint8_t)
- * Byte 3: Version (uint8_t, 0x11 = v1.1)
+ * Byte 3: Version (uint8_t, 0x12 = v1.2)
  * Byte 4: Message Class (uint8_t)
  * Byte 5: Service ID (uint8_t)
  * Byte 6: Command ID (uint8_t)
@@ -96,6 +96,22 @@ const char *deos_class_name(uint8_t msg_class);
  * @return String representation of command
  */
 const char *deos_command_name(uint8_t service, uint8_t cmd);
+
+/**
+ * @brief Get human-readable string name of a DEOS fault ID.
+ *
+ * @param fault_id DEOS fault identifier
+ * @return String representation of fault
+ */
+const char *deos_fault_name(uint16_t fault_id);
+
+/**
+ * @brief Get human-readable string name of a DEOS fault severity.
+ *
+ * @param severity DEOS fault severity enum
+ * @return String representation of severity (INFO, WARNING, ERROR, CRITICAL)
+ */
+const char *deos_fault_severity_name(deos_fault_severity_t severity);
 
 #ifdef __cplusplus
 }

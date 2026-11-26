@@ -35,4 +35,10 @@ else()
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>
     )
+
+    option(DEOS_PROTOCOL_BUILD_TESTS "Build deos_protocol unit tests" OFF)
+    if(DEOS_PROTOCOL_BUILD_TESTS)
+        enable_testing()
+        add_subdirectory(tests)
+    endif()
 endif()

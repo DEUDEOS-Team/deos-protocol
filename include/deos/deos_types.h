@@ -110,7 +110,7 @@ struct deos_node_info_payload {
     uint8_t  result_code;        /* 0x00: SUCCESS (deos_result_t) */
     uint8_t  node_id;            /* Logical Node ID (deos_node_id_t) */
     uint8_t  hw_type;            /* Hardware type (deos_hw_type_t) */
-    uint8_t  proto_version;      /* Protocol wire version (0x11 = v1.1) */
+    uint8_t  proto_version;      /* Protocol wire version (0x12 = v1.2) */
     uint8_t  fw_version_major;   /* Firmware Version - Major */
     uint8_t  fw_version_minor;   /* Firmware Version - Minor */
     uint8_t  fw_version_patch;   /* Firmware Version - Patch */
@@ -214,7 +214,11 @@ struct deos_diagnostic_fault_payload {
  */
 struct deos_parameter_payload {
     uint16_t parameter_id;
-    uint8_t  value[]; /* Variable length, implicitly defined by DEOS message length - 2 */
+#if defined(__cplusplus) && (defined(__GNUC__) || defined(__clang__))
+    __extension__ uint8_t value[]; /* Variable length, implicitly defined by DEOS message length - 2 */
+#elif !defined(__cplusplus)
+    uint8_t value[]; /* Variable length, implicitly defined by DEOS message length - 2 */
+#endif
 } __attribute__((packed));
 
 /*

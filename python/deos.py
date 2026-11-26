@@ -4,6 +4,7 @@ libdeos_protocol C kütüphanesini doğrudan çağıran resmi Python bağlayıc�
 """
 
 import os
+import re
 import sys
 import ctypes
 import subprocess
@@ -15,6 +16,13 @@ from typing import Callable, Optional, Dict, List, Any
 # ==============================================================================
 
 def _find_or_build_library() -> ctypes.CDLL:
+    env_lib = os.environ.get("DEOS_PROTOCOL_LIB")
+    if env_lib:
+        lib = ctypes.CDLL(env_lib)
+        if not hasattr(lib, "deos_registry_sizeof"):
+            raise RuntimeError(f"DEOS_PROTOCOL_LIB ({env_lib}) eksik sembol: deos_registry_sizeof")
+        return lib
+
     current_dir = Path(__file__).resolve().parent
     repo_root = current_dir.parent.parent.parent
 
@@ -28,7 +36,10 @@ def _find_or_build_library() -> ctypes.CDLL:
     for p in search_paths:
         if p.exists():
             try:
-                return ctypes.CDLL(str(p))
+                lib = ctypes.CDLL(str(p))
+                # Eski önbelleklenmiş .so sürümlerini ele (deos_registry_sizeof gerekli)
+                if hasattr(lib, "deos_registry_sizeof"):
+                    return lib
             except Exception:
                 pass
 
@@ -51,84 +62,75 @@ def _find_or_build_library() -> ctypes.CDLL:
 _lib = _find_or_build_library()
 
 # ==============================================================================
-# 2. ICD Sabitleri
+# 2. ICD Sabitleri (Single Source of Truth: include/deos/deos_*.h)
 # ==============================================================================
 
-DEOS_UNIVERSAL_HEADER_SIZE = 9
-DEOS_PROTOCOL_VERSION      = 0x11
-DEOS_MAX_PAYLOAD_LEN       = 60
+_SHORT_ALIAS_PREFIXES = (
+    "PRIO_",
+    "NODE_",
+    "CLASS_",
+    "SERVICE_",
+    "CMD_",
+    "GEAR_",
+    "PARAM_",
+    "LIGHT_",
+    "STATE_",
+    "MODE_",
+    "RESULT_",
+    "FAULT_",
+)
 
-# Öncelik Düzeyleri (Priority)
-PRIO_EMERGENCY        = 0
-PRIO_CRITICAL_CONTROL = 1
-PRIO_CONTROL          = 2
-PRIO_STATUS           = 3
-PRIO_CONFIG           = 4
-PRIO_NETWORK          = 5
-PRIO_LOW              = 6
-PRIO_BACKGROUND       = 7
+def _load_c_constants() -> Dict[str, int]:
+    """
+    C başlık dosyalarından (deos_icd.h, deos_frame.h, deos_types.h) tüm
+    DEOS_* makro ve enum sabitlerini otomatik okur; manuel kopya tutulmaz.
+    """
+    include_dir = Path(__file__).resolve().parent.parent / "include" / "deos"
+    header_files = [
+        include_dir / "deos_icd.h",
+        include_dir / "deos_frame.h",
+        include_dir / "deos_types.h",
+    ]
 
-# Düğüm ID'leri (Node IDs)
-NODE_INVALID          = 0x00
-NODE_TEXTUAL          = 0x01
-NODE_GROUND_CONTROL   = 0x02
-NODE_MAIN_STM32       = 0x03
-NODE_ROS_BRIDGE       = 0x04
-NODE_TRACTION         = 0x10
-NODE_STEERING         = 0x11
-NODE_BRAKE            = 0x12
-NODE_IMU              = 0x13
-NODE_BMS_MAIN         = 0x20
-NODE_BMS_AUX          = 0x21
-NODE_BMS_GATEWAY      = 0x30
-NODE_DIAG_TOOL        = 0xF0
-NODE_CAN_BROADCAST    = 0xFE
-NODE_GLOBAL_BROADCAST = 0xFF
+    comment_re = re.compile(r"/\*.*?\*/|//[^\n]*", re.DOTALL)
+    define_re  = re.compile(r"^\s*#define\s+(DEOS_[A-Z0-9_]+)\s+(0[xX][0-9a-fA-F]+|\d+)\b", re.MULTILINE)
+    enum_re    = re.compile(r"\b(DEOS_[A-Z0-9_]+)\s*=\s*(0[xX][0-9a-fA-F]+|\d+)\b")
 
-# Mesaj Sınıfları (Message Class)
-CLASS_SAFETY          = 0x00
-CLASS_COMMAND         = 0x01
-CLASS_STATUS          = 0x02
-CLASS_EVENT           = 0x03
-CLASS_REQUEST         = 0x04
-CLASS_RESPONSE        = 0x05
-CLASS_CONFIG          = 0x06
-CLASS_NETWORK         = 0x07
+    constants: Dict[str, int] = {}
+    for hdr in header_files:
+        if not hdr.exists():
+            raise RuntimeError(f"DEOS C başlık dosyası bulunamadı: {hdr}")
+        text = comment_re.sub("", hdr.read_text(encoding="utf-8"))
+        for name, val_str in define_re.findall(text):
+            constants[name] = int(val_str, 0)
+        for name, val_str in enum_re.findall(text):
+            constants[name] = int(val_str, 0)
 
-# Servis ID'leri (Service IDs)
-SERVICE_SYSTEM        = 0x00
-SERVICE_TRACTION      = 0x01
-SERVICE_STEERING      = 0x02
-SERVICE_BRAKE         = 0x03
-SERVICE_BMS           = 0x04
-SERVICE_CALIBRATION   = 0x05
-SERVICE_DIAGNOSTIC    = 0x06
-SERVICE_SENSORS       = 0x07
-SERVICE_LIGHTING      = 0x08
+    # Kısa takma adları (ör. DEOS_CMD_TRACTION_SET_GEAR -> CMD_TRACTION_SET_GEAR) otomatik üret
+    aliases: Dict[str, int] = {}
+    for name, val in constants.items():
+        short = name[len("DEOS_"):]
+        if short.startswith(_SHORT_ALIAS_PREFIXES):
+            aliases[short] = val
+    constants.update(aliases)
 
-# Komut Tanımları (Commands)
-CMD_SYSTEM_GET_STATE          = 0x01
-CMD_SYSTEM_SET_STATE          = 0x02
-CMD_SYSTEM_GET_MODE           = 0x03
-CMD_SYSTEM_SET_MODE           = 0x04
-CMD_SYSTEM_RESET_NODE         = 0x05
-CMD_SYSTEM_GET_NODE_INFO      = 0x06
-CMD_SYSTEM_HEARTBEAT          = 0x07
-CMD_SYSTEM_PING               = 0x08
-CMD_SYSTEM_PONG               = 0x09
-CMD_SYSTEM_SUBSCRIBE          = 0x0A
-CMD_SYSTEM_UNSUBSCRIBE        = 0x0B
+    required = (
+        "DEOS_UNIVERSAL_HEADER_SIZE",
+        "DEOS_PROTOCOL_VERSION",
+        "DEOS_MAX_PAYLOAD_LEN",
+        "NODE_INVALID",
+        "NODE_GLOBAL_BROADCAST",
+        "PRIO_STATUS",
+        "CLASS_COMMAND",
+        "SERVICE_SYSTEM",
+    )
+    missing = [k for k in required if k not in constants]
+    if missing:
+        raise RuntimeError(f"DEOS C başlıklarından beklenen sabitler okunamadı: {missing}")
 
-CMD_TRACTION_SET_TARGET_SPEED = 0x01
-CMD_TRACTION_GET_STATUS       = 0x02
-CMD_TRACTION_SET_GEAR         = 0x03
-CMD_TRACTION_SET_TORQUE_LIMIT = 0x04
+    return constants
 
-CMD_STEERING_SET_TARGET_ANGLE = 0x01
-CMD_STEERING_GET_STATUS       = 0x02
-
-CMD_BRAKE_SET_TARGET          = 0x01
-CMD_BRAKE_GET_STATUS          = 0x02
+globals().update(_load_c_constants())
 
 
 # ==============================================================================
@@ -170,11 +172,20 @@ _lib.deos_class_name.restype    = ctypes.c_char_p
 _lib.deos_command_name.argtypes = [ctypes.c_uint8, ctypes.c_uint8]
 _lib.deos_command_name.restype  = ctypes.c_char_p
 
+_lib.deos_fault_name.argtypes          = [ctypes.c_uint16]
+_lib.deos_fault_name.restype           = ctypes.c_char_p
+
+_lib.deos_fault_severity_name.argtypes = [ctypes.c_int]
+_lib.deos_fault_severity_name.restype  = ctypes.c_char_p
+
+_lib.deos_registry_sizeof.argtypes = []
+_lib.deos_registry_sizeof.restype  = ctypes.c_size_t
+
 _lib.deos_registry_init.argtypes = [ctypes.c_void_p]
 _lib.deos_registry_init.restype  = ctypes.c_int
 
 _lib.deos_registry_register_for_node.argtypes = [
-    ctypes.c_void_p, ctypes.c_uint8, ctypes.c_uint8, ctypes.c_uint8, ctypes.c_uint8, _C_HANDLER_TYPE, ctypes.c_void_p
+    ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_uint8, _C_HANDLER_TYPE, ctypes.c_void_p
 ]
 _lib.deos_registry_register_for_node.restype = ctypes.c_int
 
@@ -344,9 +355,11 @@ class DeosRegistry:
     Python callback fonksiyonlarını C fonksiyon işaretçilerine bağlar.
     """
     def __init__(self):
-        # sizeof(deos_registry_t) = 1288 bytes
-        self._reg_buf = ctypes.create_string_buffer(1300)
-        _lib.deos_registry_init(self._reg_buf)
+        reg_size = _lib.deos_registry_sizeof()
+        self._reg_buf = ctypes.create_string_buffer(reg_size)
+        res = _lib.deos_registry_init(self._reg_buf)
+        if res != 0:
+            raise RuntimeError(f"deos_registry_init C hatası döndürdü: {res}")
         # Python callback'lerinin garbage collector tarafından silinmesini önlemek için referans tablosu:
         self._c_callbacks: List[Any] = []
 
@@ -367,11 +380,12 @@ class DeosRegistry:
                 return -1
 
         c_func = _C_HANDLER_TYPE(_c_shim)
-        self._c_callbacks.append(c_func)
-
-        return _lib.deos_registry_register_for_node(
+        res = _lib.deos_registry_register_for_node(
             self._reg_buf, target_node, message_class, service, command, c_func, None
         )
+        if res == 0:
+            self._c_callbacks.append(c_func)
+        return res
 
     def dispatch(self, message: DeosMessage) -> int:
         """
@@ -390,6 +404,8 @@ def put_u16_le(val: int) -> bytes:
     return buf.raw[:2]
 
 def get_u16_le(data: bytes) -> int:
+    if len(data) < 2:
+        raise ValueError(f"get_u16_le requires at least 2 bytes, got {len(data)}")
     return _lib.deos_get_u16_le(data[:2])
 
 def put_i16_le(val: int) -> bytes:
@@ -398,6 +414,8 @@ def put_i16_le(val: int) -> bytes:
     return buf.raw[:2]
 
 def get_i16_le(data: bytes) -> int:
+    if len(data) < 2:
+        raise ValueError(f"get_i16_le requires at least 2 bytes, got {len(data)}")
     return _lib.deos_get_i16_le(data[:2])
 
 def put_u32_le(val: int) -> bytes:
@@ -406,6 +424,8 @@ def put_u32_le(val: int) -> bytes:
     return buf.raw[:4]
 
 def get_u32_le(data: bytes) -> int:
+    if len(data) < 4:
+        raise ValueError(f"get_u32_le requires at least 4 bytes, got {len(data)}")
     return _lib.deos_get_u32_le(data[:4])
 
 def put_i32_le(val: int) -> bytes:
@@ -414,4 +434,14 @@ def put_i32_le(val: int) -> bytes:
     return buf.raw[:4]
 
 def get_i32_le(data: bytes) -> int:
+    if len(data) < 4:
+        raise ValueError(f"get_i32_le requires at least 4 bytes, got {len(data)}")
     return _lib.deos_get_i32_le(data[:4])
+
+
+def fault_name(fault_id: int) -> str:
+    return _lib.deos_fault_name(int(fault_id)).decode("utf-8")
+
+
+def fault_severity_name(severity: int) -> str:
+    return _lib.deos_fault_severity_name(int(severity)).decode("utf-8")

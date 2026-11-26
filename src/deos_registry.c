@@ -7,6 +7,11 @@
 #include <string.h>
 #include <errno.h>
 
+size_t deos_registry_sizeof(void)
+{
+    return sizeof(deos_registry_t);
+}
+
 int deos_registry_init(deos_registry_t *reg)
 {
     if (!reg) {
@@ -117,18 +122,33 @@ deos_message_handler_t deos_registry_find(
         return NULL;
     }
 
-    for (int i = 0; i < DEOS_MAX_REGISTRY_HANDLERS; i++) {
-        if (reg->entries[i].in_use &&
-            (reg->entries[i].local_node == local_node || reg->entries[i].local_node == 0xFF) &&
-            reg->entries[i].message_class == message_class &&
-            reg->entries[i].service == service &&
-            reg->entries[i].command == command) {
+    const deos_registry_entry_t *wildcard_match = NULL;
 
+    for (int i = 0; i < DEOS_MAX_REGISTRY_HANDLERS; i++) {
+        if (!reg->entries[i].in_use ||
+            reg->entries[i].message_class != message_class ||
+            reg->entries[i].service != service ||
+            reg->entries[i].command != command) {
+            continue;
+        }
+
+        if (reg->entries[i].local_node == local_node) {
             if (out_user_data) {
                 *out_user_data = reg->entries[i].user_data;
             }
             return reg->entries[i].handler;
         }
+
+        if (reg->entries[i].local_node == (deos_node_id_t)0xFF && !wildcard_match) {
+            wildcard_match = &reg->entries[i];
+        }
+    }
+
+    if (wildcard_match) {
+        if (out_user_data) {
+            *out_user_data = wildcard_match->user_data;
+        }
+        return wildcard_match->handler;
     }
 
     return NULL;
@@ -142,34 +162,50 @@ int deos_registry_dispatch(
         return -EINVAL;
     }
 
-    int matched_count = 0;
     bool is_broadcast = (msg->destination == DEOS_NODE_GLOBAL_BROADCAST ||
                          msg->destination == DEOS_NODE_CAN_BROADCAST);
 
+    if (is_broadcast) {
+        int matched_count = 0;
+        for (int i = 0; i < DEOS_MAX_REGISTRY_HANDLERS; i++) {
+            if (!reg->entries[i].in_use) {
+                continue;
+            }
+            if (reg->entries[i].message_class == msg->message_class &&
+                reg->entries[i].service == msg->service &&
+                reg->entries[i].command == msg->command) {
+                reg->entries[i].handler(msg, reg->entries[i].user_data);
+                matched_count++;
+            }
+        }
+        return matched_count;
+    }
+
+    /* Unicast: exact node match takes precedence over wildcard (0xFF) fallback */
+    const deos_registry_entry_t *wildcard_entry = NULL;
+
     for (int i = 0; i < DEOS_MAX_REGISTRY_HANDLERS; i++) {
-        if (!reg->entries[i].in_use) {
+        if (!reg->entries[i].in_use ||
+            reg->entries[i].message_class != msg->message_class ||
+            reg->entries[i].service != msg->service ||
+            reg->entries[i].command != msg->command) {
             continue;
         }
 
-        /* Match node destination */
-        bool node_matches = (reg->entries[i].local_node == msg->destination) ||
-                            (reg->entries[i].local_node == 0xFF) ||
-                            is_broadcast;
-
-        if (node_matches &&
-            reg->entries[i].message_class == msg->message_class &&
-            reg->entries[i].service == msg->service &&
-            reg->entries[i].command == msg->command) {
-
+        if (reg->entries[i].local_node == msg->destination) {
             reg->entries[i].handler(msg, reg->entries[i].user_data);
-            matched_count++;
+            return 1;
+        }
 
-            /* Unicast messages stop on first exact node match */
-            if (!is_broadcast && reg->entries[i].local_node != 0xFF) {
-                break;
-            }
+        if (reg->entries[i].local_node == (deos_node_id_t)0xFF && !wildcard_entry) {
+            wildcard_entry = &reg->entries[i];
         }
     }
 
-    return matched_count;
+    if (wildcard_entry) {
+        wildcard_entry->handler(msg, wildcard_entry->user_data);
+        return 1;
+    }
+
+    return 0;
 }

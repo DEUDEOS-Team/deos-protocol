@@ -8,7 +8,7 @@ extern "C" {
 /*
  * DEOS Protocol Version
  */
-#define DEOS_PROTOCOL_VERSION 0x11
+#define DEOS_PROTOCOL_VERSION 0x12
 
 /*
  * DEOS Timing & Limits Configuration
@@ -86,8 +86,7 @@ typedef enum {
     DEOS_NODE_DIAG_TOOL      = 0xF0,
 
     DEOS_NODE_CAN_BROADCAST      = 0xFE,
-    DEOS_NODE_GLOBAL_BROADCAST   = 0xFF,
-    DEOS_NODE_BROADCAST          = 0xFF /* Alias */
+    DEOS_NODE_GLOBAL_BROADCAST   = 0xFF
 } deos_node_id_t;
 
 /*
@@ -367,6 +366,126 @@ typedef enum {
     DEOS_RESULT_NOT_READY         = 0x06,
     DEOS_RESULT_INTERNAL_ERROR    = 0x07
 } deos_result_t;
+
+/*
+ * Global Fault ID Registry (Single Source of Truth, Wire-level ICD)
+ *
+ * Domain-partitioned 16-bit global fault space (zero collisions across nodes):
+ *   0x0000          : End-of-list sentinel
+ *   0x0001 - 0x00FF : Core & Transport (System, Sub, Router, Protocol, CAN, LoRa, Eth, Dispatch)
+ *   0x0100 - 0x01FF : Traction
+ *   0x0200 - 0x02FF : Steering
+ *   0x0300 - 0x03FF : Brake
+ *   0x0400 - 0x04FF : BMS
+ *   0x0500 - 0x05FF : BMS Gateway
+ *   0x0600 - 0x06FF : Sensors (IMU, etc.)
+ *   0x0700 - 0x07FF : Lighting
+ *   0x0800 - 0x08FF : Calibration
+ *   0xF000 - 0xFFFE : Experimental / Debug
+ */
+typedef enum {
+    DEOS_FAULT_ID_END_OF_LIST             = 0x0000,
+
+    /* --- Sistem & Donanim Hatalari (0x0001 - 0x000F) --- */
+    DEOS_FAULT_INTERNAL_SOFTWARE_ERROR    = 0x0001,
+    DEOS_FAULT_WATCHDOG_RESET             = 0x0002,
+    DEOS_FAULT_INVALID_CONFIGURATION      = 0x0003,
+    DEOS_FAULT_COMMUNICATION_TIMEOUT      = 0x0004,
+    DEOS_FAULT_LOCAL_STORAGE_ERROR        = 0x0005,
+    DEOS_FAULT_ESTOP_TRIGGERED            = 0x0006,
+    DEOS_FAULT_MEMORY_ALLOCATION_FAILED   = 0x0007,
+
+    /* --- Telemetri & Abonelik Hatalari (0x0010 - 0x001F) --- */
+    DEOS_FAULT_SUB_TABLE_FULL             = 0x0010,
+    DEOS_FAULT_SUB_BROADCAST_REJECTED     = 0x0011,
+    DEOS_FAULT_SUB_MALFORMED_PAYLOAD      = 0x0012,
+    DEOS_FAULT_SUB_HANDLER_NOT_FOUND      = 0x0013,
+    DEOS_FAULT_SUB_DISPATCH_FAILED        = 0x0014,
+
+    /* --- Yonlendirici (Router) Hatalari (0x0020 - 0x002F) --- */
+    DEOS_FAULT_ROUTER_NO_POLICY           = 0x0020,
+    DEOS_FAULT_ROUTER_UNMAPPED_ROUTE      = 0x0021,
+    DEOS_FAULT_ROUTER_TRP_UNAVAILABLE     = 0x0022,
+    DEOS_FAULT_ROUTER_LOOPBACK_DETECTED   = 0x0023,
+    DEOS_FAULT_ROUTER_QUEUE_FULL          = 0x0024,
+
+    /* --- Protokol & Cerceve Hatalari (0x0030 - 0x003F) --- */
+    DEOS_FAULT_PROTOCOL_VERSION_MISMATCH  = 0x0030,
+    DEOS_FAULT_FRAME_HEADER_TOO_SHORT     = 0x0031,
+    DEOS_FAULT_PAYLOAD_TOO_LARGE          = 0x0032,
+    DEOS_FAULT_FRAME_CRC_MISMATCH         = 0x0033,
+    DEOS_FAULT_FRAME_DECODE_FAILED        = 0x0034,
+
+    /* --- CAN / CAN-FD Tasiyici Hatalari (0x0040 - 0x005F) --- */
+    DEOS_FAULT_CAN_DEV_NOT_READY          = 0x0040,
+    DEOS_FAULT_CAN_MODE_NOT_SUPPORTED     = 0x0041,
+    DEOS_FAULT_CAN_FILTER_INSTALL_FAILED  = 0x0042,
+    DEOS_FAULT_CAN_RX_QUEUE_FULL          = 0x0043,
+    DEOS_FAULT_CAN_TX_QUEUE_FULL          = 0x0044,
+    DEOS_FAULT_CAN_TX_SEND_FAILED         = 0x0045,
+    DEOS_FAULT_CAN_FRAME_DECODE_ERR       = 0x0046,
+    DEOS_FAULT_CAN_BUS_OFF                = 0x0047,
+
+    /* --- UART / LoRa Tasiyici Hatalari (0x0060 - 0x007F) --- */
+    DEOS_FAULT_LORA_DEV_NOT_READY         = 0x0060,
+    DEOS_FAULT_LORA_TX_QUEUE_FULL         = 0x0061,
+    DEOS_FAULT_LORA_RX_BUFFER_OVERFLOW    = 0x0062,
+    DEOS_FAULT_LORA_CRC_MISMATCH          = 0x0063,
+    DEOS_FAULT_LORA_FRAME_MALFORMED       = 0x0064,
+    DEOS_FAULT_LORA_ACK_TIMEOUT           = 0x0065,
+
+    /* --- Ethernet / Network Tasiyici Hatalari (0x0080 - 0x009F) --- */
+    DEOS_FAULT_ETH_LINK_DOWN              = 0x0080,
+    DEOS_FAULT_ETH_SOCKET_CREATE_FAILED   = 0x0081,
+    DEOS_FAULT_ETH_SOCKET_BIND_FAILED     = 0x0082,
+    DEOS_FAULT_ETH_TX_QUEUE_FULL          = 0x0083,
+    DEOS_FAULT_ETH_TX_SEND_FAILED         = 0x0084,
+    DEOS_FAULT_ETH_CLIENT_DISCONNECTED    = 0x0085,
+    DEOS_FAULT_ETH_FRAME_DECODE_ERR       = 0x0086,
+
+    /* --- Dagitici (Dispatcher) Hatalari (0x00A0 - 0x00AF) --- */
+    DEOS_FAULT_DISPATCH_TABLE_FULL        = 0x00A0,
+    DEOS_FAULT_DISPATCH_DUPLICATE_HANDLER = 0x00A1,
+    DEOS_FAULT_DISPATCH_HANDLER_NOT_FOUND = 0x00A2,
+
+    /* --- BMS Hatalari (0x0400 - 0x04FF) --- */
+    DEOS_FAULT_BMS_PACK_OVERVOLTAGE       = 0x0400,
+    DEOS_FAULT_BMS_PACK_UNDERVOLTAGE      = 0x0401,
+    DEOS_FAULT_BMS_CHARGE_OVERCURRENT     = 0x0402,
+    DEOS_FAULT_BMS_DISCHARGE_OVERCURRENT  = 0x0403,
+    DEOS_FAULT_BMS_OVERTEMPERATURE        = 0x0404,
+    DEOS_FAULT_BMS_UNDERTEMPERATURE       = 0x0405,
+    DEOS_FAULT_BMS_CELL_IMBALANCE         = 0x0406,
+    DEOS_FAULT_BMS_INTERNAL_ERROR         = 0x0407,
+    DEOS_FAULT_BMS_INVALID_MEASUREMENT    = 0x0408,
+
+    /* --- BMS Gateway Hatalari (0x0500 - 0x05FF) --- */
+    DEOS_FAULT_GW_MAIN_COMM_LOST          = 0x0500,
+    DEOS_FAULT_GW_AUX_COMM_LOST           = 0x0501,
+    DEOS_FAULT_GW_CAN_BUS_OFF             = 0x0502,
+    DEOS_FAULT_GW_FD_BUS_OFF              = 0x0503,
+    DEOS_FAULT_GW_INVALID_FRAME           = 0x0504,
+    DEOS_FAULT_GW_PROTOCOL_ERROR          = 0x0505
+} deos_fault_id_t;
+
+/*
+ * Fault Severity Registry
+ */
+typedef enum {
+    DEOS_FAULT_SEVERITY_INFO     = 0x01,
+    DEOS_FAULT_SEVERITY_WARNING  = 0x02,
+    DEOS_FAULT_SEVERITY_ERROR    = 0x03,
+    DEOS_FAULT_SEVERITY_CRITICAL = 0x04
+} deos_fault_severity_t;
+
+/*
+ * Fault State Registry
+ */
+typedef enum {
+    DEOS_FAULT_STATE_INACTIVE = 0x00,
+    DEOS_FAULT_STATE_ACTIVE   = 0x01,
+    DEOS_FAULT_STATE_LATCHED  = 0x02
+} deos_fault_state_t;
 
 #ifdef __cplusplus
 }

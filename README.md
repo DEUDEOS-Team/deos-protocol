@@ -213,18 +213,10 @@ class DeosRos2BridgeNode(Node):
 
 ## 4. Doğrulama ve Masaüstü Testleri
 
-Masaüstünde Zephyr olmadan saf C/C++ ve Python olarak test etmek için:
+Masaüstünde Zephyr olmadan C/C++ (`-Wall -Wextra -Wpedantic -Werror`) ve Python (`ctypes`) testlerini tek komutla çalıştırmak için:
 
-### C++ Masaüstü Testi
 ```bash
-mkdir -p tests/desktop/build
-cd tests/desktop/build
-cmake ..
-make
-./desktop_protocol_test
-```
-
-### Python C-Binding Testi
-```bash
-python3 tests/desktop/test_deos_protocol.py
+cmake -S . -B build -DDEOS_PROTOCOL_BUILD_TESTS=ON
+cmake --build build
+ctest --test-dir build --output-on-failure
 ```

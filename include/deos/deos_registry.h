@@ -48,6 +48,16 @@ typedef struct deos_registry {
 } deos_registry_t;
 
 /**
+ * @brief Return the compiled byte size of deos_registry_t.
+ *
+ * Useful for FFI bindings (e.g. Python ctypes) when DEOS_MAX_REGISTRY_HANDLERS
+ * is customized at compile time.
+ *
+ * @return sizeof(deos_registry_t) in bytes.
+ */
+size_t deos_registry_sizeof(void);
+
+/**
  * @brief Initialize a registry instance (clears all entries).
  * @param reg Pointer to registry instance.
  * @return 0 on success, -EINVAL if reg is NULL.

@@ -40,12 +40,16 @@ int deos_frame_decode(const uint8_t *buf, size_t frame_len, deos_message_t *msg)
         return -EINVAL;
     }
 
-    uint8_t payload_len = buf[DEOS_UF_LEN_OFFSET];
-    if ((size_t)(DEOS_UNIVERSAL_HEADER_SIZE + payload_len) > frame_len) {
-        return -EBADMSG;
+    if (buf[DEOS_UF_VER_OFFSET] != DEOS_PROTOCOL_VERSION) {
+        return -EPROTONOSUPPORT;
     }
+
+    uint8_t payload_len = buf[DEOS_UF_LEN_OFFSET];
     if (payload_len > DEOS_MAX_PAYLOAD_LEN) {
         return -EMSGSIZE;
+    }
+    if ((size_t)(DEOS_UNIVERSAL_HEADER_SIZE + payload_len) != frame_len) {
+        return -EBADMSG;
     }
 
     memset(msg, 0, sizeof(*msg));
@@ -219,9 +223,105 @@ const char *deos_command_name(uint8_t service, uint8_t cmd)
                 default: break;
             }
             break;
+        case DEOS_SERVICE_SENSORS:
+            switch (cmd) {
+                case DEOS_CMD_SENSOR_IMU_DATA: return "IMU_DATA";
+                default: break;
+            }
+            break;
         default:
             break;
     }
     return "UNKNOWN_CMD";
+}
+
+const char *deos_fault_name(uint16_t fault_id)
+{
+    switch (fault_id) {
+        case DEOS_FAULT_ID_END_OF_LIST:             return "END_OF_LIST";
+        /* System */
+        case DEOS_FAULT_INTERNAL_SOFTWARE_ERROR:    return "INTERNAL_SOFTWARE_ERROR";
+        case DEOS_FAULT_WATCHDOG_RESET:             return "WATCHDOG_RESET";
+        case DEOS_FAULT_INVALID_CONFIGURATION:      return "INVALID_CONFIGURATION";
+        case DEOS_FAULT_COMMUNICATION_TIMEOUT:      return "COMMUNICATION_TIMEOUT";
+        case DEOS_FAULT_LOCAL_STORAGE_ERROR:        return "LOCAL_STORAGE_ERROR";
+        case DEOS_FAULT_ESTOP_TRIGGERED:            return "ESTOP_TRIGGERED";
+        case DEOS_FAULT_MEMORY_ALLOCATION_FAILED:   return "MEMORY_ALLOCATION_FAILED";
+        /* Subscriptions */
+        case DEOS_FAULT_SUB_TABLE_FULL:             return "SUB_TABLE_FULL";
+        case DEOS_FAULT_SUB_BROADCAST_REJECTED:     return "SUB_BROADCAST_REJECTED";
+        case DEOS_FAULT_SUB_MALFORMED_PAYLOAD:      return "SUB_MALFORMED_PAYLOAD";
+        case DEOS_FAULT_SUB_HANDLER_NOT_FOUND:      return "SUB_HANDLER_NOT_FOUND";
+        case DEOS_FAULT_SUB_DISPATCH_FAILED:        return "SUB_DISPATCH_FAILED";
+        /* Router */
+        case DEOS_FAULT_ROUTER_NO_POLICY:           return "ROUTER_NO_POLICY";
+        case DEOS_FAULT_ROUTER_UNMAPPED_ROUTE:      return "ROUTER_UNMAPPED_ROUTE";
+        case DEOS_FAULT_ROUTER_TRP_UNAVAILABLE:     return "ROUTER_TRP_UNAVAILABLE";
+        case DEOS_FAULT_ROUTER_LOOPBACK_DETECTED:   return "ROUTER_LOOPBACK_DETECTED";
+        case DEOS_FAULT_ROUTER_QUEUE_FULL:          return "ROUTER_QUEUE_FULL";
+        /* Protocol */
+        case DEOS_FAULT_PROTOCOL_VERSION_MISMATCH:  return "PROTOCOL_VERSION_MISMATCH";
+        case DEOS_FAULT_FRAME_HEADER_TOO_SHORT:     return "FRAME_HEADER_TOO_SHORT";
+        case DEOS_FAULT_PAYLOAD_TOO_LARGE:          return "PAYLOAD_TOO_LARGE";
+        case DEOS_FAULT_FRAME_CRC_MISMATCH:         return "FRAME_CRC_MISMATCH";
+        case DEOS_FAULT_FRAME_DECODE_FAILED:        return "FRAME_DECODE_FAILED";
+        /* CAN */
+        case DEOS_FAULT_CAN_DEV_NOT_READY:          return "CAN_DEV_NOT_READY";
+        case DEOS_FAULT_CAN_MODE_NOT_SUPPORTED:     return "CAN_MODE_NOT_SUPPORTED";
+        case DEOS_FAULT_CAN_FILTER_INSTALL_FAILED:  return "CAN_FILTER_INSTALL_FAILED";
+        case DEOS_FAULT_CAN_RX_QUEUE_FULL:          return "CAN_RX_QUEUE_FULL";
+        case DEOS_FAULT_CAN_TX_QUEUE_FULL:          return "CAN_TX_QUEUE_FULL";
+        case DEOS_FAULT_CAN_TX_SEND_FAILED:         return "CAN_TX_SEND_FAILED";
+        case DEOS_FAULT_CAN_FRAME_DECODE_ERR:       return "CAN_FRAME_DECODE_ERR";
+        case DEOS_FAULT_CAN_BUS_OFF:                return "CAN_BUS_OFF";
+        /* LoRa */
+        case DEOS_FAULT_LORA_DEV_NOT_READY:         return "LORA_DEV_NOT_READY";
+        case DEOS_FAULT_LORA_TX_QUEUE_FULL:         return "LORA_TX_QUEUE_FULL";
+        case DEOS_FAULT_LORA_RX_BUFFER_OVERFLOW:    return "LORA_RX_BUFFER_OVERFLOW";
+        case DEOS_FAULT_LORA_CRC_MISMATCH:          return "LORA_CRC_MISMATCH";
+        case DEOS_FAULT_LORA_FRAME_MALFORMED:       return "LORA_FRAME_MALFORMED";
+        case DEOS_FAULT_LORA_ACK_TIMEOUT:           return "LORA_ACK_TIMEOUT";
+        /* Ethernet */
+        case DEOS_FAULT_ETH_LINK_DOWN:              return "ETH_LINK_DOWN";
+        case DEOS_FAULT_ETH_SOCKET_CREATE_FAILED:   return "ETH_SOCKET_CREATE_FAILED";
+        case DEOS_FAULT_ETH_SOCKET_BIND_FAILED:     return "ETH_SOCKET_BIND_FAILED";
+        case DEOS_FAULT_ETH_TX_QUEUE_FULL:          return "ETH_TX_QUEUE_FULL";
+        case DEOS_FAULT_ETH_TX_SEND_FAILED:         return "ETH_TX_SEND_FAILED";
+        case DEOS_FAULT_ETH_CLIENT_DISCONNECTED:    return "ETH_CLIENT_DISCONNECTED";
+        case DEOS_FAULT_ETH_FRAME_DECODE_ERR:       return "ETH_FRAME_DECODE_ERR";
+        /* Dispatcher */
+        case DEOS_FAULT_DISPATCH_TABLE_FULL:        return "DISPATCH_TABLE_FULL";
+        case DEOS_FAULT_DISPATCH_DUPLICATE_HANDLER: return "DISPATCH_DUPLICATE_HANDLER";
+        case DEOS_FAULT_DISPATCH_HANDLER_NOT_FOUND: return "DISPATCH_HANDLER_NOT_FOUND";
+        /* BMS */
+        case DEOS_FAULT_BMS_PACK_OVERVOLTAGE:       return "BMS_PACK_OVERVOLTAGE";
+        case DEOS_FAULT_BMS_PACK_UNDERVOLTAGE:      return "BMS_PACK_UNDERVOLTAGE";
+        case DEOS_FAULT_BMS_CHARGE_OVERCURRENT:     return "BMS_CHARGE_OVERCURRENT";
+        case DEOS_FAULT_BMS_DISCHARGE_OVERCURRENT:  return "BMS_DISCHARGE_OVERCURRENT";
+        case DEOS_FAULT_BMS_OVERTEMPERATURE:        return "BMS_OVERTEMPERATURE";
+        case DEOS_FAULT_BMS_UNDERTEMPERATURE:       return "BMS_UNDERTEMPERATURE";
+        case DEOS_FAULT_BMS_CELL_IMBALANCE:         return "BMS_CELL_IMBALANCE";
+        case DEOS_FAULT_BMS_INTERNAL_ERROR:         return "BMS_INTERNAL_ERROR";
+        case DEOS_FAULT_BMS_INVALID_MEASUREMENT:    return "BMS_INVALID_MEASUREMENT";
+        /* BMS Gateway */
+        case DEOS_FAULT_GW_MAIN_COMM_LOST:          return "GW_MAIN_COMM_LOST";
+        case DEOS_FAULT_GW_AUX_COMM_LOST:           return "GW_AUX_COMM_LOST";
+        case DEOS_FAULT_GW_CAN_BUS_OFF:             return "GW_CAN_BUS_OFF";
+        case DEOS_FAULT_GW_FD_BUS_OFF:              return "GW_FD_BUS_OFF";
+        case DEOS_FAULT_GW_INVALID_FRAME:           return "GW_INVALID_FRAME";
+        case DEOS_FAULT_GW_PROTOCOL_ERROR:          return "GW_PROTOCOL_ERROR";
+        default:                                    return "UNKNOWN_FAULT";
+    }
+}
+
+const char *deos_fault_severity_name(deos_fault_severity_t severity)
+{
+    switch (severity) {
+        case DEOS_FAULT_SEVERITY_INFO:     return "INFO";
+        case DEOS_FAULT_SEVERITY_WARNING:  return "WARNING";
+        case DEOS_FAULT_SEVERITY_ERROR:    return "ERROR";
+        case DEOS_FAULT_SEVERITY_CRITICAL: return "CRITICAL";
+        default:                           return "UNKNOWN_SEV";
+    }
 }
 

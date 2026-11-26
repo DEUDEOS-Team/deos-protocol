@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        max_handlers: [32, 64]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure CMake (DEOS_MAX_REGISTRY_HANDLERS=${{ matrix.max_handlers }})
+        run: >
+          cmake -S . -B build
+          -DDEOS_PROTOCOL_BUILD_TESTS=ON
+          -DCMAKE_C_FLAGS="-Wall -Wextra -Wpedantic -Werror -DDEOS_MAX_REGISTRY_HANDLERS=${{ matrix.max_handlers }}"
+          -DCMAKE_CXX_FLAGS="-DDEOS_MAX_REGISTRY_HANDLERS=${{ matrix.max_handlers }}"
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Run C++ and Python tests
+        run: ctest --test-dir build --output-on-failure
+
