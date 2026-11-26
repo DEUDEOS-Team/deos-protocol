@@ -111,8 +111,8 @@ import sys
 sys.path.append("/path/to/deos_firmware/lib/deos_protocol/python")
 import deos
 
-# 1. C Handler Registry'yi başlat
-registry = deos.DeosRegistry()
+# 1. C Handler Registry'yi başlat (birincil düğüm ID'si ile)
+registry = deos.DeosRegistry(deos.NODE_GROUND_CONTROL)
 
 # 2. Telemetri ve durum dinleyicilerini (callback) tanımla
 def on_traction_telemetry(msg: deos.DeosMessage):
@@ -125,10 +125,10 @@ def on_pong_response(msg: deos.DeosMessage):
     ping_id = deos.get_u32_le(msg.payload)
     print(f"[{msg.source_name}] PONG alındı! Ping ID: {ping_id}")
 
-# Callback fonksiyonlarını C dispatcher motoruna kaydet (hedef düğüm zorunlu):
-registry.register(deos.NODE_GROUND_CONTROL, deos.CLASS_STATUS, deos.SERVICE_TRACTION,
+# Callback fonksiyonlarını C dispatcher motoruna kaydet:
+registry.register(deos.CLASS_STATUS, deos.SERVICE_TRACTION,
                   deos.CMD_TRACTION_GET_STATUS, on_traction_telemetry)
-registry.register(deos.NODE_GROUND_CONTROL, deos.CLASS_NETWORK, deos.SERVICE_SYSTEM,
+registry.register(deos.CLASS_NETWORK, deos.SERVICE_SYSTEM,
                   deos.CMD_SYSTEM_PONG, on_pong_response)
 
 # 3. UDP Soketi Aç
@@ -189,9 +189,8 @@ class DeosRos2BridgeNode(Node):
         self.publisher_ = self.create_publisher(Int16, 'vehicle/actual_speed', 10)
         
         # C Registry mekanizmasını başlat
-        self.registry = deos.DeosRegistry()
+        self.registry = deos.DeosRegistry(deos.NODE_ROS_BRIDGE)
         self.registry.register(
-            deos.NODE_ROS_BRIDGE,
             deos.CLASS_STATUS,
             deos.SERVICE_TRACTION,
             deos.CMD_TRACTION_GET_STATUS,

@@ -353,8 +353,12 @@ class DeosRegistry:
     """
     C kütüphanesindeki `deos_registry_t` mekanizmasını doğrudan çalıştırır.
     Python callback fonksiyonlarını C fonksiyon işaretçilerine bağlar.
+    `deos-core` ile aynı modelde çalışır: varsayılan yerel düğüm kurucuda verilir.
     """
-    def __init__(self):
+    def __init__(self, local_node: int):
+        if int(local_node) == NODE_INVALID:
+            raise ValueError("local_node NODE_INVALID (0x00) olamaz")
+        self.local_node = int(local_node)
         reg_size = _lib.deos_registry_sizeof()
         self._reg_buf = ctypes.create_string_buffer(reg_size)
         res = _lib.deos_registry_init(self._reg_buf)
@@ -363,14 +367,13 @@ class DeosRegistry:
         # Python callback'lerinin garbage collector tarafından silinmesini önlemek için referans tablosu:
         self._c_callbacks: List[Any] = []
 
-    def register(self, target_node: int, message_class: int, service: int,
-                 command: int, callback: Callable[[DeosMessage], None]) -> int:
+    def register_for_node(self, local_node: int, message_class: int, service: int,
+                          command: int, callback: Callable[[DeosMessage], None]) -> int:
         """
-        C motoruna belirli bir hedef düğüm (target_node) için yeni bir callback kaydeder.
-        target_node zorunludur; NODE_INVALID (0x00) kabul edilmez.
+        C motoruna belirli bir mantıksal düğüm (local_node) için callback kaydeder.
         """
-        if target_node == NODE_INVALID:
-            raise ValueError("target_node NODE_INVALID (0x00) olamaz")
+        if int(local_node) == NODE_INVALID:
+            raise ValueError("local_node NODE_INVALID (0x00) olamaz")
 
         def _c_shim(msg_ptr, user_data):
             msg = DeosMessage()
@@ -384,11 +387,18 @@ class DeosRegistry:
 
         c_func = _C_HANDLER_TYPE(_c_shim)
         res = _lib.deos_registry_register_for_node(
-            self._reg_buf, target_node, message_class, service, command, c_func, None
+            self._reg_buf, int(local_node), message_class, service, command, c_func, None
         )
         if res == 0:
             self._c_callbacks.append(c_func)
         return res
+
+    def register(self, message_class: int, service: int, command: int,
+                 callback: Callable[[DeosMessage], None]) -> int:
+        """
+        C motoruna bu registry'nin birincil düğümü (`self.local_node`) için callback kaydeder.
+        """
+        return self.register_for_node(self.local_node, message_class, service, command, callback)
 
     def dispatch(self, message: DeosMessage) -> int:
         """
