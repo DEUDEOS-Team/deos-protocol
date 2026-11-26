@@ -108,13 +108,24 @@ static void test_registry_dispatch_and_find() {
     deos_message_t broadcast = unicast;
     broadcast.destination = DEOS_NODE_GLOBAL_BROADCAST;
 
+    // Invalid node must be rejected
+    {
+        deos_registry_t reg{};
+        assert(deos_registry_init(&reg) == 0);
+        DispatchLog log{};
+        assert(deos_registry_register_for_node(&reg, DEOS_NODE_INVALID, DEOS_CLASS_COMMAND,
+                                               DEOS_SERVICE_TRACTION, DEOS_CMD_TRACTION_SET_GEAR,
+                                               exact_handler, &log) == -EINVAL);
+    }
+
     // Order A: wildcard before exact
     {
         deos_registry_t reg{};
         assert(deos_registry_init(&reg) == 0);
         DispatchLog log{};
-        assert(deos_registry_register(&reg, DEOS_CLASS_COMMAND, DEOS_SERVICE_TRACTION,
-                                      DEOS_CMD_TRACTION_SET_GEAR, wildcard_handler, &log) == 0);
+        assert(deos_registry_register_for_node(&reg, DEOS_NODE_GLOBAL_BROADCAST, DEOS_CLASS_COMMAND,
+                                               DEOS_SERVICE_TRACTION, DEOS_CMD_TRACTION_SET_GEAR,
+                                               wildcard_handler, &log) == 0);
         assert(deos_registry_register_for_node(&reg, DEOS_NODE_TRACTION, DEOS_CLASS_COMMAND,
                                                DEOS_SERVICE_TRACTION, DEOS_CMD_TRACTION_SET_GEAR,
                                                exact_handler, &log) == 0);
@@ -147,8 +158,9 @@ static void test_registry_dispatch_and_find() {
         assert(deos_registry_register_for_node(&reg, DEOS_NODE_TRACTION, DEOS_CLASS_COMMAND,
                                                DEOS_SERVICE_TRACTION, DEOS_CMD_TRACTION_SET_GEAR,
                                                exact_handler, &log) == 0);
-        assert(deos_registry_register(&reg, DEOS_CLASS_COMMAND, DEOS_SERVICE_TRACTION,
-                                      DEOS_CMD_TRACTION_SET_GEAR, wildcard_handler, &log) == 0);
+        assert(deos_registry_register_for_node(&reg, DEOS_NODE_GLOBAL_BROADCAST, DEOS_CLASS_COMMAND,
+                                               DEOS_SERVICE_TRACTION, DEOS_CMD_TRACTION_SET_GEAR,
+                                               wildcard_handler, &log) == 0);
 
         assert(deos_registry_dispatch(&reg, &unicast) == 1);
         assert(log.calls.size() == 1 && std::strcmp(log.calls[0], "exact") == 0);

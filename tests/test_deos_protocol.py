@@ -51,12 +51,18 @@ class TestDeosProtocolPython(unittest.TestCase):
         reg = deos.DeosRegistry()
         self.assertEqual(len(reg._reg_buf), reg_size)
 
+        # target_node is mandatory and cannot be NODE_INVALID
+        with self.assertRaises(TypeError):
+            reg.register(deos.CLASS_COMMAND, deos.SERVICE_TRACTION, 0, lambda _m: None)
+        with self.assertRaises(ValueError):
+            reg.register(deos.NODE_INVALID, deos.CLASS_COMMAND, deos.SERVICE_TRACTION, 0, lambda _m: None)
+
         # Fill capacity dynamically (works for both 32 and 64 handler builds)
         registered = 0
         for cmd_id in range(256):
             rc = reg.register(
-                deos.CLASS_COMMAND, deos.SERVICE_TRACTION, cmd_id,
-                lambda _m: None, target_node=deos.NODE_TRACTION
+                deos.NODE_TRACTION, deos.CLASS_COMMAND, deos.SERVICE_TRACTION, cmd_id,
+                lambda _m: None
             )
             if rc != 0:
                 break
@@ -66,8 +72,8 @@ class TestDeosProtocolPython(unittest.TestCase):
 
         # Duplicate registration must fail and not leak callback reference
         dup_rc = reg.register(
-            deos.CLASS_COMMAND, deos.SERVICE_TRACTION, 0,
-            lambda _m: None, target_node=deos.NODE_TRACTION
+            deos.NODE_TRACTION, deos.CLASS_COMMAND, deos.SERVICE_TRACTION, 0,
+            lambda _m: None
         )
         self.assertNotEqual(dup_rc, 0)
         self.assertEqual(len(reg._c_callbacks), registered)
@@ -119,13 +125,13 @@ class TestDeosProtocolPython(unittest.TestCase):
         reg = deos.DeosRegistry()
         calls = []
         self.assertEqual(
-            reg.register(deos.CLASS_COMMAND, deos.SERVICE_TRACTION, deos.CMD_TRACTION_SET_GEAR,
-                         lambda _m: calls.append("wildcard"), target_node=deos.NODE_GLOBAL_BROADCAST),
+            reg.register(deos.NODE_GLOBAL_BROADCAST, deos.CLASS_COMMAND, deos.SERVICE_TRACTION,
+                         deos.CMD_TRACTION_SET_GEAR, lambda _m: calls.append("wildcard")),
             0,
         )
         self.assertEqual(
-            reg.register(deos.CLASS_COMMAND, deos.SERVICE_TRACTION, deos.CMD_TRACTION_SET_GEAR,
-                         lambda _m: calls.append("exact"), target_node=deos.NODE_TRACTION),
+            reg.register(deos.NODE_TRACTION, deos.CLASS_COMMAND, deos.SERVICE_TRACTION,
+                         deos.CMD_TRACTION_SET_GEAR, lambda _m: calls.append("exact")),
             0,
         )
         self.assertEqual(reg.dispatch(msg), 1)

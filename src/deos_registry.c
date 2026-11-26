@@ -31,7 +31,7 @@ int deos_registry_register_for_node(
     deos_message_handler_t handler,
     void *user_data)
 {
-    if (!reg || !handler) {
+    if (!reg || !handler || local_node == DEOS_NODE_INVALID) {
         return -EINVAL;
     }
 
@@ -66,19 +66,6 @@ int deos_registry_register_for_node(
     reg->count++;
 
     return 0;
-}
-
-int deos_registry_register(
-    deos_registry_t *reg,
-    deos_message_class_t message_class,
-    deos_service_id_t service,
-    uint8_t command,
-    deos_message_handler_t handler,
-    void *user_data)
-{
-    /* 0xFF acts as wildcard matching any incoming local destination */
-    return deos_registry_register_for_node(
-        reg, (deos_node_id_t)0xFF, message_class, service, command, handler, user_data);
 }
 
 int deos_registry_unregister(

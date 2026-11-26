@@ -87,26 +87,6 @@ int deos_registry_register_for_node(
     void *user_data);
 
 /**
- * @brief Register a callback matching any destination node (wildcard 0xFF).
- *
- * @param reg           Registry instance.
- * @param message_class Target message class.
- * @param service       Target service ID.
- * @param command       Target command ID.
- * @param handler       Function pointer to execute upon reception.
- * @param user_data     Optional context pointer passed to handler.
- *
- * @return 0 on success, -EEXIST if already registered, -ENOSPC if full, -EINVAL on bad args.
- */
-int deos_registry_register(
-    deos_registry_t *reg,
-    deos_message_class_t message_class,
-    deos_service_id_t service,
-    uint8_t command,
-    deos_message_handler_t handler,
-    void *user_data);
-
-/**
  * @brief Unregister a previously registered callback.
  *
  * @param reg           Registry instance.
